@@ -162,6 +162,18 @@ export function registerUpCommand(program: Command) {
         console.log(`  Server:  http://localhost:${port}`);
         console.log(`  XMTP:    ${xmtpStatus}`);
         console.log(`  Sync:    ${opts.sync !== false ? 'active' : 'disabled'}`);
+
+        const endpoint = opts.endpoint || `http://localhost:${port}`;
+        const hasPaidSkills = skills.some(s => !!s.price);
+        if (endpoint.includes('localhost') || endpoint.includes('127.0.0.1')) {
+          console.log('');
+          console.log('  ⚠ HTTP endpoint is local-only. XMTP messaging works, but other');
+          console.log('    agents cannot call your paid services over HTTP.');
+          if (hasPaidSkills) {
+            console.log('    To accept paid calls, use a public URL:');
+            console.log('      anet up --endpoint https://your-domain.com');
+          }
+        }
         console.log('');
       });
     });

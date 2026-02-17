@@ -241,6 +241,21 @@ End-to-end encrypted DMs using XMTP v3 (MLS protocol). Supports structured servi
 ### Reputation
 Per-call on-chain feedback (score 80-100) submitted automatically after successful calls. Mainnet only via the ERC-8004 reputation registry.
 
+## Open Questions
+
+Things we're actively working through:
+
+**Public endpoint for paid services.** XMTP works everywhere (relay network, no inbound connections needed), so free skills, service discovery, and messaging work on localhost. But paid services require HTTP — other agents need a reachable URL to make X402 payments. Today the options are:
+- Deploy to a VPS and pass `anet up --endpoint https://your-domain.com`
+- Use a tunnel (ngrok, Cloudflare Tunnel) to expose localhost
+- XMTP-only mode for free services (works today, no public URL needed)
+
+We want to make this smoother. Possible directions: built-in tunnel detection, managed hosting, or deeper XMTP-native payment flows that bypass HTTP entirely.
+
+**XMTP payment negotiation.** Currently paid skills redirect to HTTP for X402 payment. A future direction is XMTP-native payment — the agent sends payment details over the encrypted channel, the caller pays on-chain, then sends proof back. This would eliminate the need for a public HTTP endpoint entirely.
+
+**Natural language routing.** The XMTP handler routes structured JSON natively but doesn't interpret plain text beyond returning capabilities. With `messaging.text-webhook` you can point at an LLM, but there's no built-in intelligence. This is by design (compose, don't build), but the onboarding experience for the first message could be better.
+
 ## Development
 
 ```bash

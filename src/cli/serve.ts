@@ -69,10 +69,16 @@ export function registerServeCommand(program: Command) {
       }
 
       // Start HTTP server
+      const skillsManager = opts.xmtp !== false
+        ? undefined  // already loaded above for XMTP
+        : new SkillsManager();
+      const serveSkills = (skillsManager || new SkillsManager()).list();
+
       const app = createApp({
         walletAddress: wallet.address,
         indexer,
         agentId: ctx.registration?.agentId,
+        skills: serveSkills,
       });
 
       app.listen(port, () => {
@@ -80,6 +86,13 @@ export function registerServeCommand(program: Command) {
         console.log(`  Health:  http://localhost:${port}/health`);
         console.log(`  Info:    http://localhost:${port}/api/info`);
         console.log(`  Agents:  http://localhost:${port}/api/agents`);
+
+        if (serveSkills.some(s => !!s.price)) {
+          console.log('');
+          console.log('  ⚠ Running locally — XMTP messaging works, but paid HTTP');
+          console.log('    services are only reachable on this machine.');
+          console.log('    For production, use: anet up --endpoint https://your-domain.com');
+        }
       });
     });
 }
