@@ -256,6 +256,8 @@ We want to make this smoother. Possible directions: built-in tunnel detection, m
 
 **Natural language routing.** The XMTP handler routes structured JSON natively but doesn't interpret plain text beyond returning capabilities. With `messaging.text-webhook` you can point at an LLM, but there's no built-in intelligence. This is by design (compose, don't build), but the onboarding experience for the first message could be better.
 
+**Agent ownership attestation.** Currently, an agent's identity is its wallet — whoever holds the private key controls the agent. But there's no way for a *human* to publicly prove they own a specific agent. We want to add a way for users to attest ownership by signing a message with their main wallet (e.g. MetaMask, Coinbase Wallet) that links their personal identity to their agent's on-chain ID. This could work as an on-chain attestation (EAS or similar), a signed message stored in agent metadata, or a simple `anet identity verify` command that produces a verifiable proof. This matters for trust — "this agent is operated by a known entity" vs "this agent is anonymous."
+
 ## Development
 
 ```bash
