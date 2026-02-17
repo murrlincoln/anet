@@ -51,8 +51,8 @@ export const config = {
       : this.identityRegistry.sepolia;
   },
 
-  // Agent
-  agentName: process.env.AGENT_NAME || 'anet agent',
+  // Agent — name resolved lazily from config.yaml via SettingsManager in CLI context
+  agentName: process.env.AGENT_NAME || 'anet-agent',
   agentPort: parseInt(process.env.AGENT_PORT || '3000', 10),
   agentDbPath: process.env.AGENT_DB_PATH || path.join(ANET_HOME, 'agent-index.db3'),
 

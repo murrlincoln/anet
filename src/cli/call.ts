@@ -28,20 +28,53 @@ export function registerCallCommand(program: Command) {
         return;
       }
 
+      // Validate payload BEFORE any network calls (sync can take 30s+)
+      let payload: any = {};
+      if (opts.payload) {
+        try {
+          payload = JSON.parse(opts.payload);
+        } catch (e: any) {
+          const snippet = opts.payload.length > 80
+            ? opts.payload.slice(0, 80) + '...'
+            : opts.payload;
+          console.error(`Invalid JSON payload: ${e.message}`);
+          console.error(`  Received: ${snippet}`);
+          console.error(`  Tip: Ensure the payload is valid JSON, e.g. --payload '{"key":"value"}'`);
+          return;
+        }
+      }
+
       // Auto-resolve agent endpoint from 8004 registry
       const indexer = getIndexer();
       let agent = indexer.getAgent(agentId);
 
       if (!agent) {
-        // Auto-sync if agent not found locally
-        console.log(`Agent ${agentId} not in local index, syncing...`);
+        // Try single-agent lookup first (fast), then fall back to sync
+        console.log(`Agent ${agentId} not in local index, looking up...`);
         try {
-          const { syncFromChain } = await import('../core/discovery/sync.js');
-          const provider = getProvider();
-          await syncFromChain(provider, indexer);
-          agent = indexer.getAgent(agentId);
-        } catch (e: any) {
-          console.error(`Sync failed: ${e.message}`);
+          const { lookupAgentById } = await import('../core/discovery/sync.js');
+          const lookupResult = await Promise.race([
+            lookupAgentById(indexer, agentId),
+            new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000)),
+          ]);
+          if (lookupResult) {
+            agent = indexer.getAgent(agentId);
+          }
+        } catch {
+          // Lookup timed out or failed — try local sync
+        }
+
+        if (!agent) {
+          try {
+            const { smartSync } = await import('../core/discovery/sync.js');
+            await Promise.race([
+              smartSync(indexer, 'mainnet', { quiet: true }),
+              new Promise<number>((_, reject) => setTimeout(() => reject(new Error('timeout')), 30000)),
+            ]);
+            agent = indexer.getAgent(agentId);
+          } catch (e: any) {
+            console.error(`Sync failed: ${e.message}`);
+          }
         }
       }
 
@@ -53,21 +86,6 @@ export function registerCallCommand(program: Command) {
       }
 
       const url = `${agent.http_endpoint}/api/${service}`;
-      let payload: any = {};
-      if (opts.payload) {
-        try {
-          payload = JSON.parse(opts.payload);
-        } catch (e: any) {
-          // Show the parse error with context for debugging
-          const snippet = opts.payload.length > 80
-            ? opts.payload.slice(0, 80) + '...'
-            : opts.payload;
-          console.error(`Invalid JSON payload: ${e.message}`);
-          console.error(`  Received: ${snippet}`);
-          console.error(`  Tip: Ensure the payload is valid JSON, e.g. --payload '{"key":"value"}'`);
-          return;
-        }
-      }
 
       console.log(`Calling [${agentId}] ${agent.name || 'Unknown'}`);
       console.log(`  Service:  ${service}`);

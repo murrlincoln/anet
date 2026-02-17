@@ -14,6 +14,7 @@ export function registerInitCommand(program: Command) {
     .option('--gen', 'Generate a new wallet keypair')
     .option('--name <name>', 'Agent name', 'my-agent')
     .option('--network <net>', 'Network: testnet or mainnet', 'testnet')
+    .option('--force', 'Overwrite existing wallet (dangerous!)')
     .action(async (opts) => {
       // If no wallet flag provided and no existing wallet, show guidance
       const walletPath = path.join(ANET_HOME, 'wallet.json');
@@ -21,6 +22,14 @@ export function registerInitCommand(program: Command) {
         console.log('Initialize your agent with a wallet:\n');
         console.log('  anet init --gen                    Generate a fresh keypair');
         console.log('  anet init --private-key 0xabc...   Import an existing key\n');
+        return;
+      }
+
+      // Protect existing wallet from accidental overwrite
+      if ((opts.privateKey || opts.gen) && fs.existsSync(walletPath) && !opts.force) {
+        console.error('A wallet already exists at ' + walletPath);
+        console.error('Running init again would destroy your existing private key.\n');
+        console.error('If you really want to overwrite it, use: anet init --gen --force');
         return;
       }
 
@@ -84,9 +93,9 @@ export function registerInitCommand(program: Command) {
       if (walletAddress) {
         console.log(`\nYour wallet: ${walletAddress}`);
         console.log('\nNext steps:');
-        console.log(`  1. Fund ${walletAddress} with ETH for gas`);
-        console.log('  2. anet register --name "My Agent" --capabilities "code-review,research"');
-        console.log('  3. anet status');
+        console.log("  1. anet skills add my-skill --description 'Does something useful'");
+        console.log('  2. anet up');
+        console.log(`  3. Fund ${walletAddress} with ETH for on-chain registration`);
       }
     });
 }

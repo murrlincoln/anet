@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 
-// Suppress noisy libxmtp warnings (sqlcipherCodecAttach, etc.)
+// Suppress noisy libxmtp warnings (sqlcipherCodecAttach, etc.) on both stdout and stderr
 const _origStderrWrite = process.stderr.write.bind(process.stderr);
 process.stderr.write = function (chunk: any, ...args: any[]): boolean {
   if (typeof chunk === 'string' && chunk.includes('sqlcipherCodecAttach')) return true;
   if (Buffer.isBuffer(chunk) && chunk.toString().includes('sqlcipherCodecAttach')) return true;
   return (_origStderrWrite as any)(chunk, ...args);
+};
+const _origStdoutWrite = process.stdout.write.bind(process.stdout);
+process.stdout.write = function (chunk: any, ...args: any[]): boolean {
+  if (typeof chunk === 'string' && chunk.includes('sqlcipherCodecAttach')) return true;
+  if (Buffer.isBuffer(chunk) && chunk.toString().includes('sqlcipherCodecAttach')) return true;
+  return (_origStdoutWrite as any)(chunk, ...args);
 };
 
 import { Command } from 'commander';

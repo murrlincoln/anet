@@ -89,12 +89,12 @@ async function fetchAgents(chainId: number, limit: number, offset: number): Prom
   const url = `${SCAN_API}/agents?chain_id=${chainId}&limit=${limit}&offset=${offset}`;
   let delay = 1000;
 
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
 
     if (response.status === 429) {
       await new Promise(r => setTimeout(r, delay));
-      delay *= 2;
+      delay = Math.min(delay * 2, 30000);
       continue;
     }
 
@@ -105,7 +105,7 @@ async function fetchAgents(chainId: number, limit: number, offset: number): Prom
     return response.json();
   }
 
-  throw new Error('8004scan API rate-limited after 5 retries');
+  throw new Error('8004scan API rate-limited — try again in a minute, or set GRAPH_API_KEY for faster syncs');
 }
 
 /**

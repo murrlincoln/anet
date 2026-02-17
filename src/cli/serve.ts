@@ -19,10 +19,18 @@ export function registerServeCommand(program: Command) {
       const wallet = ctx.wallet!;
       const port = opts.port || ctx.settings.get('agent.port') || 3000;
 
+      // Load skills
+      const skillsManager = new SkillsManager();
+      const skills = skillsManager.list();
+      const skillSummary = skills.length > 0
+        ? skills.map(s => `${s.name}${s.price ? ` (${s.price})` : ' (free)'}`).join(', ')
+        : 'none — run: anet skills add <name>';
+
       console.log(`Starting anet server...\n`);
       console.log(`  Wallet:  ${wallet.address}`);
       console.log(`  Network: ${ctx.settings.get('network')}`);
       console.log(`  Port:    ${port}`);
+      console.log(`  Skills:  ${skillSummary}`);
 
       if (ctx.registration) {
         console.log(`  Agent:   ${ctx.registration.agentId}`);
@@ -47,8 +55,6 @@ export function registerServeCommand(program: Command) {
       // Start XMTP
       if (opts.xmtp !== false) {
         try {
-          const skillsManager = new SkillsManager();
-          const skills = skillsManager.list();
           const agentId = ctx.registration?.agentId;
           const messaging = new AgentMessagingClient(wallet.privateKey, {
             env: config.xmtpEnv,
@@ -68,17 +74,14 @@ export function registerServeCommand(program: Command) {
         }
       }
 
-      // Start HTTP server
-      const skillsManager = opts.xmtp !== false
-        ? undefined  // already loaded above for XMTP
-        : new SkillsManager();
-      const serveSkills = (skillsManager || new SkillsManager()).list();
-
+      // Start HTTP server (reuse skills loaded at top)
+      const agentName = ctx.settings.get('agent.name') || 'anet-agent';
       const app = createApp({
         walletAddress: wallet.address,
         indexer,
         agentId: ctx.registration?.agentId,
-        skills: serveSkills,
+        agentName,
+        skills,
       });
 
       app.listen(port, () => {
@@ -87,7 +90,7 @@ export function registerServeCommand(program: Command) {
         console.log(`  Info:    http://localhost:${port}/api/info`);
         console.log(`  Agents:  http://localhost:${port}/api/agents`);
 
-        if (serveSkills.some(s => !!s.price)) {
+        if (skills.some(s => !!s.price)) {
           console.log('');
           console.log('  ⚠ Running locally — XMTP messaging works, but paid HTTP');
           console.log('    services are only reachable on this machine.');

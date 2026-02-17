@@ -20,10 +20,14 @@ export function registerFindCommand(program: Command) {
         const label = count === 0 ? 'First run — fetching' : 'Refreshing';
         console.log(`${label} agents...`);
         try {
-          await smartSync(indexer, 'mainnet', { minFeedback: 3 });
+          await Promise.race([
+            smartSync(indexer, 'mainnet', { minFeedback: 3 }),
+            new Promise<number>((_, reject) => setTimeout(() => reject(new Error('sync timeout (60s) — try again later')), 60000)),
+          ]);
         } catch (e: any) {
           if (count === 0) {
             console.error(`Sync failed: ${e.message}`);
+            console.error('Tip: Set GRAPH_API_KEY in ~/.anet/.env for faster, more reliable syncs.');
             indexer.close();
             return;
           }

@@ -12,6 +12,7 @@ export interface ServerOptions {
   walletAddress: string;
   indexer: AgentIndexer;
   agentId?: string;
+  agentName?: string;
   skills?: SkillDefinition[];
   serviceHandlers?: Record<string, (req: express.Request, res: express.Response) => Promise<void>>;
 }
@@ -21,8 +22,8 @@ export function createApp(options: ServerOptions): express.Express {
   app.use(express.json());
 
   const skills = options.skills || [];
+  const agentName = options.agentName || config.agentName;
   const paidSkills = skills.filter(s => s.price);
-  const allSkillRoutes = skills.map(s => `${s.method || 'POST'} /api/${s.name}`);
 
   // X402 Payment middleware — dynamic routes from skills with prices
   if (paidSkills.length > 0) {
@@ -37,16 +38,17 @@ export function createApp(options: ServerOptions): express.Express {
     app.use(createPaymentMiddleware(options.walletAddress, routes));
   }
 
-  // ERC-8128 Auth middleware — protect all skill routes
-  if (allSkillRoutes.length > 0) {
-    app.use(authMiddleware({ protectedRoutes: allSkillRoutes }));
+  // ERC-8128 Auth middleware — protect only paid skill routes (free skills are open)
+  const paidSkillRoutes = paidSkills.map(s => `${s.method || 'POST'} /api/${s.name}`);
+  if (paidSkillRoutes.length > 0) {
+    app.use(authMiddleware({ protectedRoutes: paidSkillRoutes }));
   }
 
   // Health check
   app.get('/health', (_req, res) => {
     res.json({
       status: 'ok',
-      agent: config.agentName,
+      agent: agentName,
       network: config.network,
       timestamp: new Date().toISOString(),
     });
@@ -63,7 +65,7 @@ export function createApp(options: ServerOptions): express.Express {
     }));
 
     res.json({
-      name: config.agentName,
+      name: agentName,
       address: options.walletAddress,
       network: config.network,
       chainId: config.chainId,

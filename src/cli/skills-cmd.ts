@@ -5,7 +5,10 @@ import type { SkillDefinition } from '../skills/types.js';
 export function registerSkillsCommand(program: Command) {
   const skills = program
     .command('skills')
-    .description('Define what your agent can do');
+    .description('Define what your agent can do')
+    .action(() => {
+      skills.outputHelp();
+    });
 
   skills
     .command('add <name>')
@@ -31,6 +34,16 @@ export function registerSkillsCommand(program: Command) {
       if (opts.webhook) skill.webhook = opts.webhook;
       if (opts.script) skill.script = opts.script;
       if (opts.tags) skill.tags = opts.tags.split(',').map((t: string) => t.trim());
+
+      // Validate handler config
+      if (skill.handler === 'webhook' && !skill.webhook) {
+        console.warn(`Warning: handler is 'webhook' but no --webhook URL provided.`);
+        console.warn(`  The skill will return 500 when called. Set it with:`);
+        console.warn(`  anet skills add ${name} --handler webhook --webhook http://your-handler.com/endpoint`);
+      }
+      if (skill.handler === 'script' && !skill.script) {
+        console.warn(`Warning: handler is 'script' but no --script path provided.`);
+      }
 
       manager.add(skill);
       console.log(`Added skill: ${name}`);

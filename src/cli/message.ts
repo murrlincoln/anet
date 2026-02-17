@@ -7,7 +7,10 @@ import path from 'path';
 export function registerMessageCommand(program: Command) {
   const cmd = program
     .command('message')
-    .description('Send and receive XMTP messages (end-to-end encrypted)');
+    .description('Send and receive XMTP messages (end-to-end encrypted)')
+    .action(() => {
+      cmd.outputHelp();
+    });
 
   cmd
     .command('send <target> <text>')
@@ -29,8 +32,13 @@ export function registerMessageCommand(program: Command) {
           return;
         }
         label = `agent ${target} (${agent?.name || 'Unknown'})`;
-      } else if (target.startsWith('0x') && target.length === 42) {
-        // Raw Ethereum address
+      } else if (target.startsWith('0x')) {
+        // Raw Ethereum address — validate format
+        if (!/^0x[0-9a-fA-F]{40}$/.test(target)) {
+          console.error(`Invalid Ethereum address: "${target}"`);
+          console.error('  Expected format: 0x followed by 40 hex characters (e.g. 0xAbC...123)');
+          return;
+        }
         targetAddress = target;
         label = target;
       } else if (target.includes('.')) {

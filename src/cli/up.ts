@@ -113,6 +113,7 @@ export function registerUpCommand(program: Command) {
         walletAddress: wallet.address,
         indexer,
         agentId,
+        agentName,
         skills,
       });
 
@@ -129,6 +130,7 @@ export function registerUpCommand(program: Command) {
 
       // 5. Start XMTP
       let xmtpStatus = 'disabled';
+      let xmtpAddress = '';
       if (opts.xmtp !== false) {
         try {
           const endpoint = opts.endpoint || `http://localhost:${port}`;
@@ -145,6 +147,7 @@ export function registerUpCommand(program: Command) {
           });
           await messaging.start();
           xmtpStatus = 'live';
+          xmtpAddress = messaging.getAddress?.() || wallet.address;
         } catch (e: any) {
           xmtpStatus = `failed (${e.message})`;
         }
@@ -160,7 +163,7 @@ export function registerUpCommand(program: Command) {
         console.log(`  Wallet:  ${wallet.address}`);
         console.log(`  Skills:  ${skillSummary}`);
         console.log(`  Server:  http://localhost:${port}`);
-        console.log(`  XMTP:    ${xmtpStatus}`);
+        console.log(`  XMTP:    ${xmtpStatus}${xmtpAddress ? ` (${xmtpAddress})` : ''}`);
         console.log(`  Sync:    ${opts.sync !== false ? 'active' : 'disabled'}`);
 
         const endpoint = opts.endpoint || `http://localhost:${port}`;
