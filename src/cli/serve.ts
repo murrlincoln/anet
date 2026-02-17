@@ -1,0 +1,75 @@
+import { Command } from 'commander';
+import path from 'path';
+import { loadContext, getProvider, getIndexer } from './context.js';
+import { config } from '../config.js';
+import { createApp } from '../core/server/app.js';
+import { AgentMessagingClient } from '../core/messaging/client.js';
+import { startPeriodicSync } from '../core/discovery/sync.js';
+
+export function registerServeCommand(program: Command) {
+  program
+    .command('serve')
+    .description('Start agent HTTP server with ERC-8128 auth + X402 payments + discovery')
+    .option('--port <n>', 'Port number', parseInt)
+    .option('--no-xmtp', 'Disable XMTP messaging')
+    .option('--no-sync', 'Disable chain sync')
+    .action(async (opts: any) => {
+      const ctx = loadContext(true);
+      const wallet = ctx.wallet!;
+      const port = opts.port || ctx.settings.get('agent.port') || 3000;
+
+      console.log(`Starting anet server...\n`);
+      console.log(`  Wallet:  ${wallet.address}`);
+      console.log(`  Network: ${ctx.settings.get('network')}`);
+      console.log(`  Port:    ${port}`);
+
+      if (ctx.registration) {
+        console.log(`  Agent:   ${ctx.registration.agentId}`);
+      }
+
+      // Initialize discovery indexer
+      const indexer = getIndexer();
+
+      // Start chain sync
+      if (opts.sync !== false) {
+        try {
+          const provider = getProvider();
+          const blockNum = await provider.getBlockNumber();
+          console.log(`  Chain:   block ${blockNum}`);
+          const interval = (ctx.settings.get('discovery.sync-interval') || 3600) * 1000;
+          startPeriodicSync(provider, indexer, interval);
+        } catch {
+          console.log('  Chain:   sync skipped (RPC unavailable)');
+        }
+      }
+
+      // Start XMTP
+      if (opts.xmtp !== false) {
+        try {
+          const messaging = new AgentMessagingClient(wallet.privateKey, {
+            env: config.xmtpEnv,
+            encryptionKey: config.xmtpEncryptionKey,
+            dbPath: path.join(config.home, 'xmtp'),
+          });
+          await messaging.start();
+          console.log(`  XMTP:    live`);
+        } catch (e: any) {
+          console.log(`  XMTP:    failed (${e.message})`);
+        }
+      }
+
+      // Start HTTP server
+      const app = createApp({
+        walletAddress: wallet.address,
+        indexer,
+        agentId: ctx.registration?.agentId,
+      });
+
+      app.listen(port, () => {
+        console.log(`\n  Server running on http://localhost:${port}`);
+        console.log(`  Health:  http://localhost:${port}/health`);
+        console.log(`  Info:    http://localhost:${port}/api/info`);
+        console.log(`  Agents:  http://localhost:${port}/api/agents`);
+      });
+    });
+}
