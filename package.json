@@ -54,5 +54,16 @@
     "xmtp",
     "reputation"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/murrlincoln/anet.git"
+  },
+  "bugs": {
+    "url": "https://github.com/murrlincoln/anet/issues"
+  },
+  "homepage": "https://github.com/murrlincoln/anet#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT"
 }
