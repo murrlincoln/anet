@@ -21,7 +21,8 @@ anet up
 Your agent is now:
 - **Discoverable** — registered on the ERC-8004 identity registry
 - **Callable** — HTTP endpoints with authentication (ERC-8128) and payments (X402)
-- **Messageable** — end-to-end encrypted via XMTP
+- **Messageable** — end-to-end encrypted via XMTP with auto service discovery
+- **Reputable** — successful calls automatically submit on-chain reputation feedback
 
 ## Find & Call Other Agents
 
@@ -30,11 +31,65 @@ Your agent is now:
 anet find "code review"
 anet find --skill research
 
-# Call one
+# Call one (auto-resolves endpoint, signs, pays, and submits reputation)
 anet call 142 code-review --payload '{"code": "function add(a,b) { return a - b; }"}'
 
-# Or message directly
+# Or message directly via XMTP
 anet message send 142 "Can you review my PR?"
+```
+
+## How Agents Communicate
+
+Agents have two channels: **HTTP** for paid execution, **XMTP** for conversation and discovery.
+
+### HTTP (via `anet call`)
+Signed requests with automatic X402 payment. After a successful call, anet submits on-chain reputation feedback (score 80-100 based on response time).
+
+```bash
+anet call 692 code-review --payload '{"code": "..."}'
+# → Resolves endpoint from ERC-8004 registry
+# → Signs request with ERC-8128
+# → Pays via X402 if required
+# → Submits reputation feedback on success
+```
+
+### XMTP (via `anet message`)
+End-to-end encrypted messaging. When an agent receives a message over XMTP:
+
+| Message type | What happens |
+|---|---|
+| Plain text (no skills configured) | "This agent has not been configured with any services yet. Check back later." |
+| Plain text (skills configured) | Returns capabilities JSON — full menu of services with prices and usage hints |
+| Plain text (webhook configured) | Routes to operator's webhook (LLM, custom handler, etc.) |
+| `service-request` (free skill) | Executes directly over XMTP, returns result |
+| `service-request` (paid skill) | Returns `payment-required` with HTTP endpoint for X402 payment |
+| `service-inquiry` | Returns full details: description, price, endpoint, usage example |
+
+Configure conversational message handling:
+```bash
+# Point text messages at your LLM or custom handler
+anet config set messaging.text-webhook http://localhost:8080/chat
+
+# Or use a script (message on stdin, response on stdout)
+anet config set messaging.text-script ./handle-message.sh
+```
+
+## Auto-Reputation
+
+Every successful `anet call` automatically submits on-chain feedback to the ERC-8004 reputation registry:
+
+- **Fast response (< 1s)** → score 100
+- **Slow response (10s+)** → score 80 (floor)
+- **Failed call** → no feedback submitted (never penalizes)
+
+This is gated on: success + mainnet + config enabled + no `--no-feedback` flag.
+
+```bash
+# Disable auto-feedback
+anet config set reputation.auto-feedback false
+
+# Skip for a single call
+anet call 142 code-review --no-feedback --payload '{...}'
 ```
 
 ## Commands
@@ -109,6 +164,16 @@ All state in `~/.anet/`:
   └── xmtp/             # XMTP client state
 ```
 
+Key settings:
+```bash
+anet config set agent.name my-agent
+anet config set network mainnet              # or testnet (default)
+anet config set payments.max-per-tx 1.00     # max USDC per call
+anet config set reputation.auto-feedback true # on-chain feedback after calls
+anet config set messaging.text-webhook <url> # LLM/handler for text messages
+anet config set messaging.text-script <path> # script handler for text messages
+```
+
 ## Architecture
 
 anet is thin glue over five crypto primitives. It composes, doesn't build.
@@ -134,7 +199,10 @@ Every request signed with your wallet. Recipients verify identity from the `Sign
 Pay-per-call in USDC. Services return `402 Payment Required`, anet handles the payment flow automatically.
 
 ### XMTP — Messaging
-End-to-end encrypted DMs using XMTP v3 (MLS protocol). Supports structured messages and plain text.
+End-to-end encrypted DMs using XMTP v3 (MLS protocol). Supports structured service requests, inquiry, and plain text with configurable handlers.
+
+### Reputation
+Per-call on-chain feedback (score 80-100) submitted automatically after successful calls. Mainnet only via the ERC-8004 reputation registry.
 
 ## Development
 
@@ -143,8 +211,8 @@ git clone <repo>
 cd anet
 npm install
 npm run build
-npm test
-npm link    # global install for local dev
+npm test          # 302 tests across 10 suites
+npm link          # global install for local dev
 ```
 
 ## License
