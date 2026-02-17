@@ -440,3 +440,22 @@ hooks:
 - Help text, error messages, edge cases
 - Full test suite
 - Update OpenClaw skill for anet
+
+---
+
+## Open Items (post-porcelain)
+
+### 1. `anet call` parameter UX
+`--payload '{"code":"..."}'` is clunky. Consider:
+- `--file <path>` to read payload from file or stdin
+- `--data key=value` shorthand for simple payloads
+- Better error messages for malformed JSON
+- `--method GET` support for GET-based skills
+
+### 2. Message "waiter" flow (XMTP → service discovery)
+The MessageHandler should act like a waiter at a restaurant:
+- **Plain text / "what can you do?"** → respond with a **menu**: skill names, descriptions, prices, how to order
+- **Service inquiry** → return full details including pricing and a payment link/instruction
+- **Service request via XMTP** → if free, execute directly; if paid, respond with payment instructions (endpoint URL + X402 flow) or handle payment inline
+- Skills config should feed into the MessageHandler so it can describe what the agent offers
+- Consider: can XMTP carry structured payment negotiation? Or does it redirect to HTTP for X402?

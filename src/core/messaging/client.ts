@@ -1,4 +1,5 @@
 import { MessageHandler, type ServiceHandler } from './handler.js';
+import type { SkillDefinition } from '../../skills/types.js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -8,6 +9,12 @@ export interface XMTPClientOptions {
   encryptionKey?: string;
   dbPath?: string;
   maxMessagesPerMinute?: number;
+  skills?: SkillDefinition[];
+  agentName?: string;
+  agentId?: number;
+  httpEndpoint?: string;
+  textWebhook?: string;
+  textScript?: string;
 }
 
 export class AgentMessagingClient {
@@ -26,6 +33,12 @@ export class AgentMessagingClient {
     this.options = options;
     this.handler = new MessageHandler({
       maxMessagesPerMinute: options.maxMessagesPerMinute,
+      skills: options.skills,
+      agentName: options.agentName,
+      agentId: options.agentId,
+      httpEndpoint: options.httpEndpoint,
+      textWebhook: options.textWebhook,
+      textScript: options.textScript,
     });
     this.messageLog = path.join(options.dbPath || process.cwd(), 'xmtp-messages.jsonl');
   }

@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { createApp } from '../core/server/app.js';
 import { AgentMessagingClient } from '../core/messaging/client.js';
 import { startPeriodicSync } from '../core/discovery/sync.js';
+import { SkillsManager } from '../skills/manager.js';
 
 export function registerServeCommand(program: Command) {
   program
@@ -46,10 +47,19 @@ export function registerServeCommand(program: Command) {
       // Start XMTP
       if (opts.xmtp !== false) {
         try {
+          const skillsManager = new SkillsManager();
+          const skills = skillsManager.list();
+          const agentId = ctx.registration?.agentId;
           const messaging = new AgentMessagingClient(wallet.privateKey, {
             env: config.xmtpEnv,
             encryptionKey: config.xmtpEncryptionKey,
             dbPath: path.join(config.home, 'xmtp'),
+            skills,
+            agentName: ctx.settings.get('agent.name') || 'anet-agent',
+            agentId: agentId ? parseInt(agentId) : undefined,
+            httpEndpoint: `http://localhost:${port}`,
+            textWebhook: ctx.settings.get('messaging.text-webhook') || undefined,
+            textScript: ctx.settings.get('messaging.text-script') || undefined,
           });
           await messaging.start();
           console.log(`  XMTP:    live`);

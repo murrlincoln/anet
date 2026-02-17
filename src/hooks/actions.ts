@@ -101,14 +101,14 @@ export function getBuiltinActions(): Map<string, HookHandler> {
     return { allow: true };
   });
 
-  // Auto-reputation — submit 8004 feedback after interaction
+  // Auto-reputation — log feedback submission
+  // Note: actual on-chain feedback is handled directly in call.ts (needs signer context).
+  // This hook fires for logging/webhook purposes after the submission.
   actions.set('auto-reputation', async (ctx: HookContext) => {
-    // This would call giveFeedback() — but needs signer context
-    // For now, just log the intent
     const agentId = ctx.data.agentId;
-    const score = ctx.data._hookConfig?.score ?? 70;
-    if (agentId) {
-      console.log(`[hook] auto-reputation: would rate agent ${agentId} with score ${score}`);
+    const score = ctx.data.reputationScore;
+    if (agentId && score != null) {
+      console.log(`[hook] auto-reputation: agent ${agentId} scored ${score}`);
     }
     return { allow: true };
   });

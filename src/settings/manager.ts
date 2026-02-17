@@ -20,11 +20,16 @@ export interface AnetConfig {
   messaging: {
     webhook: string;
     'rate-limit': number;
+    'text-webhook': string;
+    'text-script': string;
   };
   payments: {
     'max-per-tx': number;
     'max-per-session': number;
     currency: string;
+  };
+  reputation: {
+    'auto-feedback': boolean;
   };
   discovery: {
     'sync-interval': number;
@@ -49,11 +54,16 @@ const DEFAULT_CONFIG: AnetConfig = {
   messaging: {
     webhook: '',
     'rate-limit': 10,
+    'text-webhook': '',
+    'text-script': '',
   },
   payments: {
     'max-per-tx': 1.00,
     'max-per-session': 10.00,
     currency: 'USDC',
+  },
+  reputation: {
+    'auto-feedback': true,
   },
   discovery: {
     'sync-interval': 3600,

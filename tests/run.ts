@@ -12,6 +12,9 @@ const tests = [
   'auth.test.ts',
   'budget.test.ts',
   'skills.test.ts',
+  'reputation.test.ts',
+  'call-input.test.ts',
+  'messaging.test.ts',
 ];
 
 let totalPassed = 0;

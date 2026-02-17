@@ -131,10 +131,17 @@ export function registerUpCommand(program: Command) {
       let xmtpStatus = 'disabled';
       if (opts.xmtp !== false) {
         try {
+          const endpoint = opts.endpoint || `http://localhost:${port}`;
           const messaging = new AgentMessagingClient(wallet.privateKey, {
             env: config.xmtpEnv,
             encryptionKey: config.xmtpEncryptionKey,
             dbPath: path.join(config.home, 'xmtp'),
+            skills,
+            agentName,
+            agentId: agentId ? parseInt(agentId) : undefined,
+            httpEndpoint: endpoint,
+            textWebhook: ctx.settings.get('messaging.text-webhook') || undefined,
+            textScript: ctx.settings.get('messaging.text-script') || undefined,
           });
           await messaging.start();
           xmtpStatus = 'live';

@@ -42,6 +42,31 @@ export interface FriendAccept {
   name: string;
 }
 
+export interface CapabilitiesResponse {
+  type: 'capabilities';
+  agentId?: number;
+  name: string;
+  services: {
+    name: string;
+    description: string;
+    price: string | null;
+    method: string;
+  }[];
+  freeServices: string[];
+  paidServices: string[];
+  httpEndpoint?: string;
+  usage: {
+    free: { type: string; service: string; payload: Record<string, any> } | null;
+    paid: string | null;
+  };
+}
+
+export interface NotConfiguredResponse {
+  type: 'not-configured';
+  message: string;
+  capabilities?: CapabilitiesResponse;
+}
+
 export type AgentMessage = ServiceRequest | ServiceInquiry | ServiceResponse | ServiceDetails | FriendRequest | FriendAccept;
 
 export interface MessageContext {

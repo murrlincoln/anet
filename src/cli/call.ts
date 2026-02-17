@@ -4,22 +4,29 @@ import { signRequest } from '../core/auth/signer.js';
 import { X402Client } from '../core/payments/client.js';
 import { BudgetManager } from '../core/payments/budget.js';
 import { PaymentTracker } from '../core/payments/tracker.js';
-import { computeReputationScore } from '../core/registry/metadata.js';
+import { giveFeedback } from '../core/registry/reputation.js';
 import { FriendsDB } from '../social/friends.js';
 import { HookEngine } from '../hooks/engine.js';
 import { SettingsManager } from '../settings/manager.js';
+import { config, ANET_HOME } from '../config.js';
+import { ethers } from 'ethers';
 import path from 'path';
-import { ANET_HOME } from '../config.js';
 
 export function registerCallCommand(program: Command) {
   program
     .command('call <agent-id> <service>')
     .description('Call a service (auto-resolve from 8004, auto-sign with 8128, auto-pay with X402, auto-reputation)')
     .option('--payload <json>', 'JSON payload')
+    .option('--no-feedback', 'Skip auto-reputation feedback')
     .action(async (agentIdStr: string, service: string, opts: any) => {
       const ctx = loadContext(true);
       const wallet = ctx.wallet!;
       const agentId = parseInt(agentIdStr);
+
+      if (isNaN(agentId)) {
+        console.error(`Invalid agent ID: "${agentIdStr}" — must be a numeric ERC-8004 agent ID.`);
+        return;
+      }
 
       // Auto-resolve agent endpoint from 8004 registry
       const indexer = getIndexer();
@@ -46,7 +53,21 @@ export function registerCallCommand(program: Command) {
       }
 
       const url = `${agent.http_endpoint}/api/${service}`;
-      const payload = opts.payload ? JSON.parse(opts.payload) : {};
+      let payload: any = {};
+      if (opts.payload) {
+        try {
+          payload = JSON.parse(opts.payload);
+        } catch (e: any) {
+          // Show the parse error with context for debugging
+          const snippet = opts.payload.length > 80
+            ? opts.payload.slice(0, 80) + '...'
+            : opts.payload;
+          console.error(`Invalid JSON payload: ${e.message}`);
+          console.error(`  Received: ${snippet}`);
+          console.error(`  Tip: Ensure the payload is valid JSON, e.g. --payload '{"key":"value"}'`);
+          return;
+        }
+      }
 
       console.log(`Calling [${agentId}] ${agent.name || 'Unknown'}`);
       console.log(`  Service:  ${service}`);
@@ -103,19 +124,43 @@ export function registerCallCommand(program: Command) {
 
       const responseTime = Date.now() - startTime;
 
-      // Auto-reputation: compute score from actual interaction metrics
-      const metrics = computeReputationScore({
-        reachable: responseStatus > 0,
-        successRate: success ? 100 : 0,
-        responseTime,
-      });
+      // Per-call feedback score (0-100)
+      // Only submitted on success, so this reflects quality of a successful interaction.
+      // Response time penalty: lose up to 20 points for slow responses (>10s)
+      const timePenalty = Math.min(20, Math.round((responseTime / 10000) * 20));
+      const feedbackScore = success ? 100 - timePenalty : 0;
 
-      console.log(`\n  Metrics: ${responseTime}ms, ${success ? 'success' : 'failed'}, score: ${metrics}`);
+      console.log(`\n  Metrics: ${responseTime}ms, ${success ? 'success' : 'failed'}, score: ${feedbackScore}`);
+
+      // Submit on-chain feedback via ERC-8004 reputation registry
+      const autoFeedback = ctx.settings.get('reputation.auto-feedback') ?? true;
+      if (success && autoFeedback && opts.feedback !== false && config.network === 'mainnet') {
+        try {
+          // Create a mainnet signer for the reputation registry
+          const mainnetProvider = new ethers.JsonRpcProvider(config.baseRpcUrl);
+          const mainnetSigner = new ethers.Wallet(wallet.privateKey, mainnetProvider);
+
+          const txHash = await giveFeedback(
+            mainnetSigner,
+            agentId,
+            feedbackScore,     // value: per-call score (0-100)
+            service,           // tag1: service name
+            'anet',            // tag2: caller stack identifier
+            url,               // ref: the endpoint called
+          );
+          console.log(`  Feedback: score ${feedbackScore} submitted on-chain (tx: ${txHash.slice(0, 18)}...)`);
+        } catch (e: any) {
+          // Non-blocking — don't fail the call over reputation
+          console.log(`  Feedback: skipped (${e.message})`);
+        }
+      } else if (success && autoFeedback && config.network !== 'mainnet') {
+        console.log(`  Feedback: skipped (reputation registry is mainnet-only)`);
+      }
 
       // Fire post-call hook with metrics
       await hooks.fire('post-call', {
         agentId, service, responseTime, success, responseStatus,
-        reputationScore: metrics,
+        reputationScore: feedbackScore,
       });
 
       // Fire post-interaction hook
@@ -125,7 +170,7 @@ export function registerCallCommand(program: Command) {
         service,
         outcome: success ? 'success' : 'failure',
         responseTime,
-        reputationScore: metrics,
+        reputationScore: feedbackScore,
       });
 
       // Auto-upgrade trust for existing friends based on interaction
