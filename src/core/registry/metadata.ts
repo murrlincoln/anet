@@ -29,8 +29,8 @@ export interface ServiceEntry {
 // anet protocol constants
 export const ANET_PROTOCOL = {
   stack: 'anet',
-  version: '0.1.0',
-  features: ['friends', 'rooms', 'hooks', 'auto-reputation'],
+  version: '0.2.0',
+  features: ['skills', 'friends', 'rooms', 'hooks', 'auto-reputation'],
 } as const;
 
 export const ERC8004_TYPE = 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1';
@@ -148,6 +148,82 @@ export function hasService(metadata: any, serviceName: string): boolean {
 
 export function getService(metadata: any, serviceName: string): ServiceEntry | null {
   return metadata?.services?.find((s: any) => s.name?.toLowerCase() === serviceName.toLowerCase()) || null;
+}
+
+/**
+ * Build ERC-8004 metadata from skills config + agent settings.
+ * Used by `anet up` to generate on-chain metadata from skills.yaml.
+ */
+export function buildMetadataFromSkills(opts: {
+  name: string;
+  description: string;
+  walletAddress: string;
+  skills: { name: string; description: string; price?: string; tags?: string[] }[];
+  agentId?: number;
+  chainId?: number;
+  httpEndpoint?: string;
+  xmtpEnv?: 'production' | 'dev';
+}): AgentMetadata {
+  const services: ServiceEntry[] = [];
+
+  // XMTP — always present
+  services.push({
+    name: 'XMTP',
+    endpoint: opts.walletAddress,
+    version: opts.xmtpEnv || 'production',
+  });
+
+  // HTTP endpoint
+  if (opts.httpEndpoint) {
+    services.push({ name: 'web', endpoint: opts.httpEndpoint });
+  }
+
+  // Each skill becomes a service entry
+  for (const skill of opts.skills) {
+    services.push({
+      name: skill.name,
+      endpoint: opts.httpEndpoint ? `${opts.httpEndpoint}/api/${skill.name}` : `/api/${skill.name}`,
+      version: skill.price || 'free',
+    });
+  }
+
+  // Build capabilities from skill names + tags
+  const capabilities = new Set<string>();
+  for (const skill of opts.skills) {
+    capabilities.add(skill.name);
+    if (skill.tags) {
+      for (const tag of skill.tags) capabilities.add(tag);
+    }
+  }
+
+  const metadata: AgentMetadata = {
+    type: ERC8004_TYPE,
+    name: opts.name,
+    description: opts.description,
+    services,
+    active: true,
+    x402Support: opts.skills.some(s => s.price),
+    supportedTrust: ['reputation'],
+    updatedAt: Math.floor(Date.now() / 1000),
+  };
+
+  if (opts.agentId && opts.chainId) {
+    const registry = opts.chainId === 8453
+      ? '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432'
+      : '0x8004A818BFB912233c491871b3d84c89A494BD9e';
+    metadata.registrations = [{
+      agentId: opts.agentId,
+      agentRegistry: `eip155:${opts.chainId}:${registry}`,
+    }];
+  }
+
+  metadata.ext = {
+    stack: ANET_PROTOCOL.stack,
+    version: ANET_PROTOCOL.version,
+    features: [...ANET_PROTOCOL.features, ...capabilities],
+  };
+
+  return metadata;
 }
 
 export function validateMetadata(metadata: AgentMetadata): { valid: boolean; errors: string[] } {

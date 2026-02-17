@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
 import { ANET_HOME } from '../config.js';
+import { SkillsManager } from '../skills/manager.js';
 
 export interface AnetConfig {
   agent: { name: string; port: number };
@@ -178,5 +179,7 @@ export class SettingsManager {
     if (!fs.existsSync(hooksPath)) {
       fs.writeFileSync(hooksPath, yaml.dump(DEFAULT_HOOKS, { lineWidth: -1 }));
     }
+
+    SkillsManager.initDefaults(home);
   }
 }

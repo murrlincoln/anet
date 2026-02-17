@@ -1,7 +1,7 @@
 {
   "name": "@anet/cli",
-  "version": "0.1.0",
-  "description": "Agentic Network — on-chain economy stack for autonomous agents",
+  "version": "0.2.0",
+  "description": "anet — Agent Economy Toolkit",
   "type": "module",
   "bin": {
     "anet": "./bin/anet.js"

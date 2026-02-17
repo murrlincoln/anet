@@ -11,6 +11,7 @@ const tests = [
   'indexer.test.ts',
   'auth.test.ts',
   'budget.test.ts',
+  'skills.test.ts',
 ];
 
 let totalPassed = 0;

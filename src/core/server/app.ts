@@ -1,14 +1,18 @@
 import express from 'express';
+import axios from 'axios';
+import { execSync } from 'child_process';
 import { config } from '../../config.js';
 import { authMiddleware } from '../auth/middleware.js';
 import { createPaymentMiddleware } from '../payments/server.js';
 import { AgentIndexer } from '../discovery/indexer.js';
 import { searchAgents, getTopAgents } from '../discovery/search.js';
+import type { SkillDefinition } from '../../skills/types.js';
 
 export interface ServerOptions {
   walletAddress: string;
   indexer: AgentIndexer;
   agentId?: string;
+  skills?: SkillDefinition[];
   serviceHandlers?: Record<string, (req: express.Request, res: express.Response) => Promise<void>>;
 }
 
@@ -16,20 +20,27 @@ export function createApp(options: ServerOptions): express.Express {
   const app = express();
   app.use(express.json());
 
-  // X402 Payment middleware for monetized routes
-  app.use(createPaymentMiddleware(
-    options.walletAddress,
-    {
-      'POST /api/code-review': { price: '$0.50', network: `base-${config.network}` },
-      'POST /api/research': { price: '$0.25', network: `base-${config.network}` },
-      'POST /api/task-analysis': { price: '$0.10', network: `base-${config.network}` },
-    }
-  ));
+  const skills = options.skills || [];
+  const paidSkills = skills.filter(s => s.price);
+  const allSkillRoutes = skills.map(s => `${s.method || 'POST'} /api/${s.name}`);
 
-  // ERC-8128 Auth middleware for protected routes
-  app.use(authMiddleware({
-    protectedRoutes: ['POST /api/code-review', 'POST /api/research', 'POST /api/task-analysis'],
-  }));
+  // X402 Payment middleware — dynamic routes from skills with prices
+  if (paidSkills.length > 0) {
+    const routes: Record<string, { price: string; network: string }> = {};
+    for (const skill of paidSkills) {
+      const method = skill.method || 'POST';
+      routes[`${method} /api/${skill.name}`] = {
+        price: skill.price!,
+        network: `base-${config.network}`,
+      };
+    }
+    app.use(createPaymentMiddleware(options.walletAddress, routes));
+  }
+
+  // ERC-8128 Auth middleware — protect all skill routes
+  if (allSkillRoutes.length > 0) {
+    app.use(authMiddleware({ protectedRoutes: allSkillRoutes }));
+  }
 
   // Health check
   app.get('/health', (_req, res) => {
@@ -41,19 +52,22 @@ export function createApp(options: ServerOptions): express.Express {
     });
   });
 
-  // Agent info
+  // Agent info — dynamic from skills
   app.get('/api/info', (_req, res) => {
+    const skillInfo = skills.map(s => ({
+      name: s.name,
+      description: s.description,
+      price: s.price || 'free',
+      method: s.method || 'POST',
+      endpoint: `/api/${s.name}`,
+    }));
+
     res.json({
       name: config.agentName,
       address: options.walletAddress,
       network: config.network,
       chainId: config.chainId,
-      services: ['code-review', 'research', 'task-analysis'],
-      pricing: {
-        'POST /api/code-review': '$0.50 USDC',
-        'POST /api/research': '$0.25 USDC',
-        'POST /api/task-analysis': '$0.10 USDC',
-      },
+      skills: skillInfo,
       authentication: 'ERC-8128 (Ethereum-signed HTTP requests)',
       payment: 'X402 (HTTP 402 payment flow, USDC on Base)',
       messaging: {
@@ -69,42 +83,76 @@ export function createApp(options: ServerOptions): express.Express {
     });
   });
 
-  // Service endpoints
-  app.post('/api/code-review', async (req, res) => {
-    const handler = options.serviceHandlers?.['code-review'];
-    if (handler) return handler(req, res);
+  // Register dynamic skill routes
+  for (const skill of skills) {
+    const method = (skill.method || 'POST').toLowerCase() as 'get' | 'post';
+    const path = `/api/${skill.name}`;
 
-    res.json({
-      status: 'success',
-      review: 'Code review service placeholder - implement your review logic',
-      signer: req.signerAddress,
-      timestamp: new Date().toISOString(),
+    app[method](path, async (req, res) => {
+      // Check for programmatic handler first
+      const handler = options.serviceHandlers?.[skill.name];
+      if (handler) return handler(req, res);
+
+      // Route by handler type
+      switch (skill.handler) {
+        case 'webhook': {
+          if (!skill.webhook) {
+            return res.status(500).json({ error: 'Webhook URL not configured' });
+          }
+          try {
+            const resp = await axios({
+              method: req.method as any,
+              url: skill.webhook,
+              data: req.body,
+              headers: {
+                'content-type': 'application/json',
+                'x-signer-address': req.signerAddress || '',
+              },
+              timeout: 30000,
+            });
+            res.status(resp.status).json(resp.data);
+          } catch (e: any) {
+            const status = e.response?.status || 502;
+            res.status(status).json({ error: 'Webhook failed', detail: e.message });
+          }
+          break;
+        }
+
+        case 'script': {
+          if (!skill.script) {
+            return res.status(500).json({ error: 'Script path not configured' });
+          }
+          try {
+            const output = execSync(skill.script, {
+              input: JSON.stringify(req.body),
+              encoding: 'utf8',
+              timeout: 30000,
+            });
+            try {
+              res.json(JSON.parse(output));
+            } catch {
+              res.json({ status: 'ok', output: output.trim() });
+            }
+          } catch (e: any) {
+            res.status(500).json({ error: 'Script failed', detail: e.message });
+          }
+          break;
+        }
+
+        case 'placeholder':
+        default: {
+          res.json({
+            status: 'ok',
+            skill: skill.name,
+            description: skill.description,
+            signer: req.signerAddress,
+            timestamp: new Date().toISOString(),
+          });
+          break;
+        }
+      }
     });
-  });
-
-  app.post('/api/research', async (req, res) => {
-    const handler = options.serviceHandlers?.['research'];
-    if (handler) return handler(req, res);
-
-    res.json({
-      status: 'success',
-      results: 'Research service placeholder - implement your research logic',
-      signer: req.signerAddress,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  app.post('/api/task-analysis', async (req, res) => {
-    const handler = options.serviceHandlers?.['task-analysis'];
-    if (handler) return handler(req, res);
-
-    res.json({
-      status: 'success',
-      analysis: 'Task analysis placeholder - implement your analysis logic',
-      signer: req.signerAddress,
-      timestamp: new Date().toISOString(),
-    });
-  });
+  }
 
   // Discovery endpoints
   app.get('/api/agents', (req, res) => {

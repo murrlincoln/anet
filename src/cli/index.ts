@@ -10,41 +10,49 @@ process.stderr.write = function (chunk: any, ...args: any[]): boolean {
 
 import { Command } from 'commander';
 import { registerInitCommand } from './init.js';
+import { registerUpCommand } from './up.js';
+import { registerSkillsCommand } from './skills-cmd.js';
+import { registerFindCommand } from './find.js';
+import { registerStatusCommand } from './status.js';
+import { registerCallCommand } from './call.js';
+import { registerMessageCommand } from './message.js';
 import { registerIdentityCommand } from './identity.js';
 import { registerRegisterCommand } from './register.js';
 import { registerSearchCommand } from './search.js';
+import { registerServeCommand } from './serve.js';
 import { registerFriendsCommand } from './friends.js';
 import { registerRoomCommand } from './room.js';
-import { registerMessageCommand } from './message.js';
-import { registerServeCommand } from './serve.js';
-import { registerCallCommand } from './call.js';
 import { registerReputationCommand } from './reputation.js';
 import { registerPaymentsCommand } from './payments.js';
 import { registerConfigCommand } from './config-cmd.js';
 import { registerHooksCommand } from './hooks-cmd.js';
-import { registerStatusCommand } from './status.js';
 
 const program = new Command();
 
 program
   .name('anet')
-  .description('Agentic Network — on-chain economy stack for autonomous agents')
-  .version('0.1.0');
+  .description('anet — Agent Economy Toolkit')
+  .version('0.2.0');
 
-// Register all command groups
+// Daily commands (porcelain) — appear first in help
 registerInitCommand(program);
+registerUpCommand(program);
+registerSkillsCommand(program);
+registerFindCommand(program);
+registerCallCommand(program);
+registerMessageCommand(program);
+registerStatusCommand(program);
+
+// Advanced commands (plumbing)
 registerIdentityCommand(program);
 registerRegisterCommand(program);
 registerSearchCommand(program);
+registerServeCommand(program);
 registerFriendsCommand(program);
 registerRoomCommand(program);
-registerMessageCommand(program);
-registerServeCommand(program);
-registerCallCommand(program);
 registerReputationCommand(program);
 registerPaymentsCommand(program);
 registerConfigCommand(program);
 registerHooksCommand(program);
-registerStatusCommand(program);
 
 program.parse();

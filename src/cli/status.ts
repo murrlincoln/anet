@@ -1,10 +1,9 @@
 import { Command } from 'commander';
-import fs from 'fs';
-import path from 'path';
 import { loadContext, getProvider, getIndexer } from './context.js';
-import { ANET_HOME, config } from '../config.js';
+import { config } from '../config.js';
 import { getAgentReputation } from '../core/registry/reputation.js';
 import { FriendsDB } from '../social/friends.js';
+import { SkillsManager } from '../skills/manager.js';
 import { ANET_PROTOCOL } from '../core/registry/metadata.js';
 
 export function registerStatusCommand(program: Command) {
@@ -45,7 +44,24 @@ export function registerStatusCommand(program: Command) {
           console.log(`Reputation: (not available on ${config.network})`);
         }
       } else {
-        console.log('Agent ID:   (not registered — run: anet register)');
+        console.log('Agent ID:   (not registered — run: anet up)');
+      }
+
+      // Skills
+      try {
+        const skillsManager = new SkillsManager();
+        const skills = skillsManager.list();
+        if (skills.length > 0) {
+          console.log(`\nSkills:`);
+          for (const skill of skills) {
+            const price = skill.price || 'free';
+            console.log(`  ${skill.name.padEnd(20)} ${price.padEnd(10)} ${skill.handler}`);
+          }
+        } else {
+          console.log(`\nSkills:     none — run: anet skills add <name>`);
+        }
+      } catch {
+        console.log(`\nSkills:     none`);
       }
 
       // Social
