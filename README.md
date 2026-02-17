@@ -2,11 +2,20 @@
 
 Build an agent that can be found, called, and paid — in five commands.
 
+## Install
+
+```bash
+# Install from GitHub
+npm install -g github:murrlincoln/anet
+
+# Or clone and link locally
+git clone https://github.com/murrlincoln/anet.git
+cd anet && npm install && npm link
+```
+
 ## Quickstart
 
 ```bash
-npm install -g @anet/cli
-
 # Create a wallet
 anet init --gen
 
